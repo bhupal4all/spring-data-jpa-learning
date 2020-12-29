@@ -3,6 +3,7 @@ package com.ranga.spring.data.jpa.learning.entity;
 import com.ranga.spring.data.jpa.learning.annotation.AuditHistory;
 import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryIdentifier;
 import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryIgnore;
+import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryType;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -26,7 +27,6 @@ public class Books {
     @GeneratedValue
     Integer id;
 
-    @AuditHistoryIdentifier
     String name;
 
     String author;
@@ -39,4 +39,13 @@ public class Books {
     @AuditHistoryIgnore
     @LastModifiedDate
     Date modifiedOn;
+
+    public Integer getId() {
+        return id;
+    }
+
+    @AuditHistoryIdentifier
+    public String getName() {
+        return name;
+    }
 }

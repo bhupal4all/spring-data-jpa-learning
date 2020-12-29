@@ -2,6 +2,7 @@ package com.ranga.spring.data.jpa.learning.interceptor;
 
 import com.ranga.spring.data.jpa.learning.SpringContextUtil;
 import com.ranga.spring.data.jpa.learning.annotation.AuditHistory;
+import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryIdentifier;
 import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryIgnore;
 import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryType;
 import com.ranga.spring.data.jpa.learning.entity.Books;
@@ -22,7 +23,6 @@ import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.stereotype.Component;
 
 import java.io.Serializable;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -40,7 +40,7 @@ public class HibernateInterceptor extends EmptyInterceptor {
     BooksService booksService;
     HibernateInterceptorProperties properties;
     Map<Class, List> ignorePropertiesMap = new HashMap<>();
-    Map<Class, Field> identifierMap = new HashMap<>();
+    Map<Class, String> identifierMethodMap = new HashMap<>();
 
 
     private BooksService getBooksService() {
@@ -64,7 +64,7 @@ public class HibernateInterceptor extends EmptyInterceptor {
                           Object[] state,
                           String[] propertyNames,
                           Type[] types) {
-        if (isAuditHistoryEnabledFor(entity, AuditHistoryType.SAVE)) {
+        if (isAuditHistoryEnabledFor(entity, AuditHistoryType.INSERT)) {
             writeHistory(entity, state, null, propertyNames);
         }
 
@@ -78,7 +78,7 @@ public class HibernateInterceptor extends EmptyInterceptor {
                                 Object[] previousState,
                                 String[] propertyNames,
                                 Type[] types) {
-        if (isAuditHistoryEnabledFor(entity, AuditHistoryType.SAVE)) {
+        if (isAuditHistoryEnabledFor(entity, AuditHistoryType.UPDATE)) {
             writeHistory(entity, currentState, previousState, propertyNames);
         }
 
@@ -112,16 +112,24 @@ public class HibernateInterceptor extends EmptyInterceptor {
     private Object getEntityAuditIdentifier(Object entity, String[] propertyNames) {
         Object returnValue = null;
 
-        // TODO: Get Generalization of Identifier from
-
-        try {
-            Method getIdMethod = entity.getClass().getDeclaredMethod("getId");
-            returnValue = getIdMethod.invoke(entity);
-        } catch (Exception excp) {
-            System.err.println(excp);
-            // TODO: Exception Handling
+        if (!identifierMethodMap.containsKey(entity.getClass())) {
+            List<String> identifierMethods = Arrays.stream(entity.getClass().getDeclaredMethods())
+                    .filter(method -> AnnotationUtils.getAnnotation(method, AuditHistoryIdentifier.class) != null)
+                    .map(method -> method.getName())
+                    .collect(Collectors.toList());
+            identifierMethodMap.put(entity.getClass(), identifierMethods.get(0));
         }
 
+        String identifierMethod = identifierMethodMap.get(entity.getClass());
+        if (Strings.isNotEmpty(identifierMethod)) {
+            try {
+                Method getIdMethod = entity.getClass().getDeclaredMethod(identifierMethod);
+                returnValue = getIdMethod.invoke(entity);
+            } catch (Exception excp) {
+                System.err.println(excp);
+                // TODO: Exception Handling
+            }
+        }
         return returnValue;
     }
 

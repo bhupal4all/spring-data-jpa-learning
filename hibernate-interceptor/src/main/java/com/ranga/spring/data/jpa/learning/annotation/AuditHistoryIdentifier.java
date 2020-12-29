@@ -13,7 +13,7 @@ import java.lang.annotation.Target;
  * @since 2020-12-29
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD})
+@Target({ElementType.METHOD})
 public @interface AuditHistoryIdentifier {
 
 }

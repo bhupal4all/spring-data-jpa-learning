@@ -6,5 +6,5 @@ package com.ranga.spring.data.jpa.learning.annotation;
  * @since 2020-12-29
  */
 public enum AuditHistoryType {
-    INSERT, SAVE, DELETE, ALL
+    INSERT, UPDATE, DELETE, ALL
 }
