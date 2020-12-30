@@ -33,13 +33,14 @@ public class LearningApplication implements CommandLineRunner {
     public void run(String... args) throws Exception {
         System.out.println("**************************************************");
 
-        booksService.save(Books.builder().name("Spring MVC").author("Josh Long").year(2010).build());
+        booksService.save(Books.builder().name("Spring MVC").author("Josh Long").year(2010).customField1("Nothing").build());
         booksService.save(Books.builder().name("Spring MVC").author("Ranga").year(2012).build());
         booksService.save(Books.builder().name("Spring Boot").author("Josh Long").year(2015).build());
 
         Optional<Books> firstBook = booksService.getById(1);
         if (firstBook.isPresent()){
             firstBook.get().setYear(2020);
+            firstBook.get().setCustomField1("Published");
             booksService.save(firstBook.get());
         }
 

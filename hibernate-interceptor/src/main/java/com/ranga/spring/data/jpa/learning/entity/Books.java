@@ -20,7 +20,7 @@ import java.util.Date;
 @AllArgsConstructor
 @Builder
 @ToString(callSuper = false, includeFieldNames = true)
-@AuditHistory
+@AuditHistory(AuditHistoryType.ALL)
 public class Books {
 
     @Id
@@ -32,6 +32,8 @@ public class Books {
     String author;
 
     Integer year;
+    
+    String customField1;
 
     @CreatedDate
     Date createdOn;

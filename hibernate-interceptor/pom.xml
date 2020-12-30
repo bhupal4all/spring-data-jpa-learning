@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.ranga.spring.data.jpa</groupId>
-    <artifactId>learning</artifactId>
+    <artifactId>hibernate-interceptor</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>learning</name>
-    <description>Learning Spring Data JPA</description>
+    <name>hibernate-interceptor</name>
+    <description>Hibernate Interceptor</description>
 
     <properties>
         <java.version>1.8</java.version>

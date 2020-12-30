@@ -5,8 +5,6 @@ import com.ranga.spring.data.jpa.learning.annotation.AuditHistory;
 import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryIdentifier;
 import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryIgnore;
 import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryType;
-import com.ranga.spring.data.jpa.learning.entity.Books;
-import com.ranga.spring.data.jpa.learning.service.BooksService;
 import org.apache.logging.log4j.util.Strings;
 import org.hibernate.EmptyInterceptor;
 import org.hibernate.type.Type;
@@ -37,18 +35,17 @@ public class HibernateInterceptor extends EmptyInterceptor {
 
 
     Javers javers = JaversBuilder.javers().withListCompareAlgorithm(ListCompareAlgorithm.AS_SET).build();
-    BooksService booksService;
+    HibernateInterceptorExtensionService extensionService;
     HibernateInterceptorProperties properties;
     Map<Class, List> ignorePropertiesMap = new HashMap<>();
     Map<Class, String> identifierMethodMap = new HashMap<>();
 
-
-    private BooksService getBooksService() {
-        if (booksService == null) {
-            booksService = SpringContextUtil.getApplicationContext().getBean(BooksService.class);
+    private HibernateInterceptorExtensionService getExtensionService() {
+        if (extensionService == null) {
+            extensionService = SpringContextUtil.getApplicationContext().getBean(HibernateInterceptorExtensionService.class);
         }
 
-        return booksService;
+        return extensionService;
     }
 
     private HibernateInterceptorProperties getProperties() {
@@ -148,15 +145,15 @@ public class HibernateInterceptor extends EmptyInterceptor {
     }
 
     private void writeHistory(Object entity, Object[] currentState, Object[] previousState, String[] propertyNames) {
-        List<String> changeStrings = new ArrayList<>();
+        List<String> changeStringsList = new ArrayList<>();
 
         List auditHistoryIgnoreProperties = getAuditHistoryIgnoreProperties(entity);
         Object identifier = getEntityAuditIdentifier(entity, propertyNames);
 
         if (previousState == null && currentState != null) {
-            changeStrings.add(String.format(getProperties().getNewFormat(), entity.getClass().getSimpleName(), identifier));
+            changeStringsList.add(String.format(getProperties().getNewFormat(), entity.getClass().getSimpleName(), identifier));
         } else if (previousState != null && currentState == null) {
-            changeStrings.add(String.format(getProperties().getDeleteFormat(), entity.getClass().getSimpleName(), identifier));
+            changeStringsList.add(String.format(getProperties().getDeleteFormat(), entity.getClass().getSimpleName(), identifier));
         } else {
             Diff compare = javers.compare(previousState, currentState);
             Changes changes = compare.getChanges();
@@ -173,20 +170,19 @@ public class HibernateInterceptor extends EmptyInterceptor {
 
                         if (!auditHistoryIgnoreProperties.contains(propertyName)) {
                             String message = String.format(getProperties().getModifiedFormat(),
-                                    entity.getClass().getSimpleName(),
                                     propertyName,
                                     ele.getLeftValue(),
                                     ele.getRightValue());
-                            changeStrings.add(message);
+                            changeStringsList.add(message);
                         }
                     }
                 }
             }
         }
 
-        getBooksService().createHistory(
-                ((Books) entity).getId(),
-                Strings.join(changeStrings, '\n')
+        getExtensionService().writeHistoryExtension(
+                entity, currentState, previousState, propertyNames,
+                changeStringsList
         );
 
     }

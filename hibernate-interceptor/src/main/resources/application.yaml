@@ -7,8 +7,8 @@ spring:
     show-sql: true
     properties:
       hibernate.ejb.interceptor: com.ranga.spring.data.jpa.learning.interceptor.HibernateInterceptor
-audit:
-  history:
-    newFormat: "New '%s' of '%s' Id"
-    deleteFormat: "Deleted '%s' of '%s' Id"
-    modifiedFormat: "- '%s.%s' changed from '%s' to '%s'"
+#audit:
+#  history:
+#    newFormat: "New '%s' of '%s' Id"
+#    deleteFormat: "Deleted '%s' of '%s' Id"
+#    modifiedFormat: "- '%s' changed from '%s' to '%s'"
