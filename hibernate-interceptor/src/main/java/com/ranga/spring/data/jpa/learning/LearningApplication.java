@@ -31,7 +31,7 @@ public class LearningApplication implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        System.out.println("**************************************************");
+        System.out.println("\n************************************************** Start\n");
 
         booksService.save(Books.builder().name("Spring MVC").author("Josh Long").year(2010).customField1("Nothing").build());
         booksService.save(Books.builder().name("Spring MVC").author("Ranga").year(2012).build());
@@ -40,7 +40,7 @@ public class LearningApplication implements CommandLineRunner {
         Optional<Books> firstBook = booksService.getById(1);
         if (firstBook.isPresent()){
             firstBook.get().setYear(2020);
-            firstBook.get().setCustomField1("Published");
+            firstBook.get().setCustomField1("Safari Books");
             booksService.save(firstBook.get());
         }
 
@@ -50,8 +50,9 @@ public class LearningApplication implements CommandLineRunner {
         List<BooksUpdateHistory> booksHistory = booksService.getBooksHistory();
 
 //        books.forEach(book -> log.info(book.toString()));
+        System.out.println("\n* * * * * Audit History * * * * *\n");
         booksHistory.forEach(history -> log.info("Book ID: {}, History: {}",history.getBookId(),history.getHistory()));
 
-        System.out.println("**************************************************");
+        System.out.println("\n************************************************** End\n");
     }
 }

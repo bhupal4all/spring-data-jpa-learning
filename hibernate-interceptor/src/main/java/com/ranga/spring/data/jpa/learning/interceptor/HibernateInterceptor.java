@@ -1,10 +1,7 @@
 package com.ranga.spring.data.jpa.learning.interceptor;
 
 import com.ranga.spring.data.jpa.learning.SpringContextUtil;
-import com.ranga.spring.data.jpa.learning.annotation.AuditHistory;
-import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryIdentifier;
-import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryIgnore;
-import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryType;
+import com.ranga.spring.data.jpa.learning.annotation.*;
 import org.apache.logging.log4j.util.Strings;
 import org.hibernate.EmptyInterceptor;
 import org.hibernate.type.Type;
@@ -35,10 +32,22 @@ public class HibernateInterceptor extends EmptyInterceptor {
 
 
     Javers javers = JaversBuilder.javers().withListCompareAlgorithm(ListCompareAlgorithm.AS_SET).build();
+
     HibernateInterceptorExtensionService extensionService;
     HibernateInterceptorProperties properties;
-    Map<Class, List> ignorePropertiesMap = new HashMap<>();
+
+    Map<Class, Boolean> historyEnabledMap = new HashMap<>();
+    Map<Class, List> ignoreFieldsMap = new HashMap<>();
     Map<Class, String> identifierMethodMap = new HashMap<>();
+    Map<Class, List> extensionFieldHookMap = new HashMap<>();
+
+    Map<Long, List<Object>> threadMap = new HashMap<>();
+
+    public HibernateInterceptor() {
+        System.out.println("****************************************");
+        System.out.println("***** HibernateInterceptor Created *****");
+        System.out.println("****************************************");
+    }
 
     private HibernateInterceptorExtensionService getExtensionService() {
         if (extensionService == null) {
@@ -61,8 +70,10 @@ public class HibernateInterceptor extends EmptyInterceptor {
                           Object[] state,
                           String[] propertyNames,
                           Type[] types) {
-        if (isAuditHistoryEnabledFor(entity, AuditHistoryType.INSERT)) {
+        if (isAuditHistoryEnabledFor(entity, AuditHistoryType.INSERT)
+                && !isThreadSameAsPreviousForEntity(entity) ) {
             writeHistory(entity, state, null, propertyNames);
+            clearThreadMap(entity);
         }
 
         return super.onSave(entity, id, state, propertyNames, types);
@@ -75,8 +86,10 @@ public class HibernateInterceptor extends EmptyInterceptor {
                                 Object[] previousState,
                                 String[] propertyNames,
                                 Type[] types) {
-        if (isAuditHistoryEnabledFor(entity, AuditHistoryType.UPDATE)) {
+        if (isAuditHistoryEnabledFor(entity, AuditHistoryType.UPDATE)
+                && !isThreadSameAsPreviousForEntity(entity) ){
             writeHistory(entity, currentState, previousState, propertyNames);
+            clearThreadMap(entity);
         }
 
         return super.onFlushDirty(entity, id, currentState, previousState, propertyNames, types);
@@ -84,15 +97,24 @@ public class HibernateInterceptor extends EmptyInterceptor {
 
     @Override
     public void onDelete(Object entity, Serializable id, Object[] state, String[] propertyNames, Type[] types) {
-        if (isAuditHistoryEnabledFor(entity, AuditHistoryType.DELETE)) {
+        if (isAuditHistoryEnabledFor(entity, AuditHistoryType.DELETE)
+                && !isThreadSameAsPreviousForEntity(entity) ) {
             writeHistory(entity, null, state, propertyNames);
+            clearThreadMap(entity);
         }
 
         super.onDelete(entity, id, state, propertyNames, types);
     }
 
     private boolean isAuditHistoryEnabled(Object entity) {
-        return AnnotationUtils.isAnnotationDeclaredLocally(AuditHistory.class, entity.getClass());
+        if (!historyEnabledMap.containsKey(entity.getClass())) {
+            historyEnabledMap.put(
+                    entity.getClass(),
+                    AnnotationUtils.isAnnotationDeclaredLocally(AuditHistory.class, entity.getClass())
+            );
+        }
+
+        return historyEnabledMap.getOrDefault(entity.getClass(), false);
     }
 
     private boolean isAuditHistoryEnabledFor(Object entity, AuditHistoryType requiredAuditHistoryType) {
@@ -106,6 +128,30 @@ public class HibernateInterceptor extends EmptyInterceptor {
         return isEnabled;
     }
 
+    private boolean isThreadSameAsPreviousForEntity(Object entity) {
+        List<Object> entityList = this.threadMap.get(Thread.currentThread().getId());
+        if (entityList==null){
+            entityList = new ArrayList<>();
+            this.threadMap.put(Thread.currentThread().getId(), entityList);
+        }
+
+        boolean isSameThread = this.threadMap.containsKey(Thread.currentThread().getId());
+        boolean isSameEntity = entityList.contains(entity);
+
+        if (!(isSameThread && isSameEntity)) {
+            entityList.add(entity);
+            this.threadMap.put(Thread.currentThread().getId(), entityList);
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean clearThreadMap(Object entity){
+        this.threadMap.remove(entity.getClass().getName());
+        return true;
+    }
+
     private Object getEntityAuditIdentifier(Object entity, String[] propertyNames) {
         Object returnValue = null;
 
@@ -114,11 +160,21 @@ public class HibernateInterceptor extends EmptyInterceptor {
                     .filter(method -> AnnotationUtils.getAnnotation(method, AuditHistoryIdentifier.class) != null)
                     .map(method -> method.getName())
                     .collect(Collectors.toList());
-            identifierMethodMap.put(entity.getClass(), identifierMethods.get(0));
+            if (!identifierMethods.isEmpty()) {
+                identifierMethodMap.put(entity.getClass(), identifierMethods.get(0));
+            } else {
+                List<String> superClassIdentifierMethods = Arrays.stream(entity.getClass().getSuperclass().getDeclaredMethods())
+                        .filter(method -> AnnotationUtils.getAnnotation(method, AuditHistoryIdentifier.class) != null)
+                        .map(method -> method.getName())
+                        .collect(Collectors.toList());
+                if (!superClassIdentifierMethods.isEmpty()){
+                    identifierMethodMap.put(entity.getClass(), superClassIdentifierMethods.get(0));
+                }
+            }
         }
 
         String identifierMethod = identifierMethodMap.get(entity.getClass());
-        if (Strings.isNotEmpty(identifierMethod)) {
+        if (identifierMethod != null && identifierMethod.length() > 0) {
             try {
                 Method getIdMethod = entity.getClass().getDeclaredMethod(identifierMethod);
                 returnValue = getIdMethod.invoke(entity);
@@ -131,23 +187,63 @@ public class HibernateInterceptor extends EmptyInterceptor {
     }
 
     private List getAuditHistoryIgnoreProperties(Object entity) {
-        List<String> ignoreProperties = new ArrayList<>();
+        List<String> ignoreFieldsList = new ArrayList<>();
 
-        if (!ignorePropertiesMap.containsKey(entity.getClass())) {
-            ignoreProperties = Arrays.stream(entity.getClass().getDeclaredFields())
+        if (!ignoreFieldsMap.containsKey(entity.getClass())) {
+            List<String> fields = Arrays.stream(entity.getClass().getDeclaredFields())
                     .filter(field -> AnnotationUtils.getAnnotation(field, AuditHistoryIgnore.class) != null)
                     .map(field -> field.getName())
                     .collect(Collectors.toList());
-            ignorePropertiesMap.put(entity.getClass(), ignoreProperties);
+            if (fields != null && !fields.isEmpty()) {
+                ignoreFieldsList.addAll(fields);
+            }
+
+            List<String> superClassFields = Arrays.stream(entity.getClass().getSuperclass().getDeclaredFields())
+                    .filter(field -> AnnotationUtils.getAnnotation(field, AuditHistoryIgnore.class) != null)
+                    .map(field -> field.getName())
+                    .collect(Collectors.toList());
+            if (superClassFields != null && !superClassFields.isEmpty()) {
+                ignoreFieldsList.addAll(superClassFields);
+            }
+
+            ignoreFieldsMap.put(entity.getClass(), ignoreFieldsList);
         }
 
-        return ignorePropertiesMap.get(entity.getClass());
+        return ignoreFieldsMap.getOrDefault(entity.getClass(), ignoreFieldsList);
+    }
+
+    private List getFieldExtensionsRegistered(Object entity) {
+        List<String> extensionFieldList = new ArrayList<>();
+
+        if (!extensionFieldHookMap.containsKey(entity.getClass())) {
+            List<String> fields = Arrays.stream(entity.getClass().getDeclaredFields())
+                    .filter(field -> AnnotationUtils.getAnnotation(field, AuditHistoryFieldExtensionHook.class) != null)
+                    .map(field -> field.getName())
+                    .collect(Collectors.toList());
+            if (fields != null && !fields.isEmpty()) {
+                extensionFieldList.addAll(fields);
+            }
+
+            List<String> superClassFields = Arrays.stream(entity.getClass().getSuperclass().getDeclaredFields())
+                    .filter(field -> AnnotationUtils.getAnnotation(field, AuditHistoryFieldExtensionHook.class) != null)
+                    .map(field -> field.getName())
+                    .collect(Collectors.toList());
+            if (superClassFields != null && !superClassFields.isEmpty()) {
+                extensionFieldList.addAll(superClassFields);
+            }
+
+            extensionFieldHookMap.put(entity.getClass(), extensionFieldList);
+        }
+
+        return extensionFieldHookMap.getOrDefault(entity.getClass(), extensionFieldList);
     }
 
     private void writeHistory(Object entity, Object[] currentState, Object[] previousState, String[] propertyNames) {
         List<String> changeStringsList = new ArrayList<>();
 
-        List auditHistoryIgnoreProperties = getAuditHistoryIgnoreProperties(entity);
+        List auditHistoryIgnoreFields = getAuditHistoryIgnoreProperties(entity);
+        List auditHistoryFieldExtensionHookList = getFieldExtensionsRegistered(entity);
+
         Object identifier = getEntityAuditIdentifier(entity, propertyNames);
 
         if (previousState == null && currentState != null) {
@@ -168,11 +264,29 @@ public class HibernateInterceptor extends EmptyInterceptor {
                         ElementValueChange ele = (ElementValueChange) arrayChanges.get(idx);
                         String propertyName = propertyNames[ele.getIndex()];
 
-                        if (!auditHistoryIgnoreProperties.contains(propertyName)) {
-                            String message = String.format(getProperties().getModifiedFormat(),
+                        if (!auditHistoryIgnoreFields.contains(propertyName)) {
+                            Object previousValue = ele.getLeftValue();
+                            Object currentValue = ele.getRightValue();
+
+                            if (auditHistoryFieldExtensionHookList.contains(propertyName)) {
+                                Map<Object, Object> updatedMap = getExtensionService().fieldExtension(
+                                        entity,
+                                        propertyName,
+                                        previousValue,
+                                        currentValue
+                                );
+
+                                propertyName = updatedMap.getOrDefault(propertyName, propertyName).toString();
+                                previousValue = updatedMap.getOrDefault(previousValue, previousValue);
+                                currentValue = updatedMap.getOrDefault(currentValue, currentValue);
+                            }
+
+                            String message = String.format(
+                                    getProperties().getModifiedFormat(),
                                     propertyName,
-                                    ele.getLeftValue(),
-                                    ele.getRightValue());
+                                    previousValue,
+                                    currentValue
+                            );
                             changeStringsList.add(message);
                         }
                     }
@@ -180,10 +294,9 @@ public class HibernateInterceptor extends EmptyInterceptor {
             }
         }
 
-        getExtensionService().writeHistoryExtension(
+        getExtensionService().historyExtension(
                 entity, currentState, previousState, propertyNames,
                 changeStringsList
         );
-
     }
 }

@@ -58,4 +58,12 @@ public class BooksService {
 				Strings.join(historyModified, '\n')
 		);
 	}
+
+	public String updateNameFor(String propertyName) {
+		if ("customField1".equals(propertyName)){
+			return "Publisher";
+		}
+
+		return null;
+	}
 }

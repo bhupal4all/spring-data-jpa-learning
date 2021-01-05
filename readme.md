@@ -9,3 +9,4 @@
   * `AuditHistoryIgnore` annotation to ignore a property
     * Can be multiple
   * `AuditHistoryIdentifier` annotaiton for Identifier Method for *new* and *delete* operations
+  * `AuditHistoryFieldExtensionHook` annotation for Property Extension

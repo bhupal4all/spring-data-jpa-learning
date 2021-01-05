@@ -1,9 +1,6 @@
 package com.ranga.spring.data.jpa.learning.entity;
 
-import com.ranga.spring.data.jpa.learning.annotation.AuditHistory;
-import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryIdentifier;
-import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryIgnore;
-import com.ranga.spring.data.jpa.learning.annotation.AuditHistoryType;
+import com.ranga.spring.data.jpa.learning.annotation.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -32,7 +29,8 @@ public class Books {
     String author;
 
     Integer year;
-    
+
+    @AuditHistoryFieldExtensionHook
     String customField1;
 
     @CreatedDate
